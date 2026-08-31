@@ -9,7 +9,7 @@ export interface DeviceProfile {
   osVersion: string;
   browser: string;
   browserVersion: string;
-  screen: { w: number; h: number };
+  screen: { width: number; height: number };
   userAgent: string;
   language: string;
   timezone: string;
