@@ -6,11 +6,10 @@ import rateLimit from 'express-rate-limit';
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 import path from 'node:path';
-import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { env } from './config/env.js';
 import { getDb } from './db/index.js';
-import { authMiddleware, signToken } from './middleware/auth.js';
+import { authMiddleware } from './middleware/auth.js';
 import { SOCKET_EVENTS, SPEED_PRESETS } from './config/constants.js';
 import { DEVICE_PROFILES } from './data/devices.js';
 import { LOCATION_PROFILES } from './data/locations.js';
@@ -27,28 +26,12 @@ app.use(cors({ origin: env.corsOrigins, credentials: true }));
 app.use(express.json({ limit: '1mb' }));
 app.use(rateLimit({ windowMs: env.RATE_LIMIT_WINDOW_MS, max: env.RATE_LIMIT_MAX, standardHeaders: true }));
 
-// ensure admin user
-function ensureAdmin() {
-  const db = getDb();
-  const existing = db.prepare('SELECT id FROM users WHERE email=?').get(env.ADMIN_EMAIL);
-  if (!existing) {
-    const hash = bcrypt.hashSync(env.ADMIN_PASSWORD, 10);
-    db.prepare('INSERT INTO users (id,email,password_hash,created_at) VALUES (?,?,?,?)').run(uuid(), env.ADMIN_EMAIL, hash, new Date().toISOString());
-    logger.info('Created admin user ' + env.ADMIN_EMAIL);
-  }
-}
-ensureAdmin();
-
-// Auth
-app.post('/api/auth/login', async (req, res) => {
-  const { email, password } = req.body;
-  const db = getDb();
-  const user = db.prepare('SELECT * FROM users WHERE email=?').get(email) as any;
-  if (!user || !bcrypt.compareSync(password, user.password_hash)) return res.status(401).json({ error: 'Invalid credentials' });
-  const token = signToken({ id: user.id, email: user.email });
-  res.json({ token, email: user.email });
+// Auth removed: open access. Login endpoints kept as no-ops so old clients don't break.
+app.post('/api/auth/login', (_req, res) => {
+  res.json({ token: '', email: '' });
 });
-app.get('/api/auth/me', authMiddleware, (req, res) => res.json({ user: (req as any).user }));
+app.get('/api/auth/me', (_req, res) => res.json({ user: null }));
+app.post('/api/auth/change-password', (_req, res) => res.status(410).json({ error: 'Auth removed: open access' }));
 
 // Catalog
 app.get('/api/devices', authMiddleware, (_req, res) => res.json(DEVICE_PROFILES));

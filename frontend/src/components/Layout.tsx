@@ -1,7 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAuth } from '../stores/auth';
 
 const nav = [
   { to:'/', label:'Dashboard', icon:'◈' },
@@ -17,7 +16,6 @@ const nav = [
 export default function Layout(){
   const [open,setOpen]=useState(false);
   const [dark,setDark]=useState(()=>localStorage.getItem('theme')==='dark');
-  const {logout,user}=useAuth();
   useEffect(()=>{
     document.documentElement.classList.toggle('dark',dark);
     localStorage.setItem('theme',dark?'dark':'light');
@@ -50,8 +48,7 @@ export default function Layout(){
           ))}
         </nav>
         <div style={{padding:12,borderTop:`1px solid ${dark?'#334155':'#e2e8f0'}`,fontSize:13}}>
-          <div style={{opacity:.7,overflow:'hidden',textOverflow:'ellipsis'}}>{user?.email||'Guest'}</div>
-          <button onClick={logout} style={{marginTop:8,width:'100%',padding:'8px',borderRadius:10,border:'1px solid #e2e8f0',cursor:'pointer',background:dark?'#334155':'#fff',color:dark?'#fff':'#0f172a'}}>Sign out</button>
+          <div style={{opacity:.7,overflow:'hidden',textOverflow:'ellipsis'}}>Open access</div>
         </div>
       </motion.aside>
 

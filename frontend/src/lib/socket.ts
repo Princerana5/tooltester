@@ -4,7 +4,7 @@ let socket: Socket | null = null;
 export function getSocket(): Socket {
   if (socket?.connected) return socket;
   if (socket) socket.disconnect();
-  socket = io(URL, { auth: { token: localStorage.getItem('token')||'' }, transports:['websocket'] });
+  socket = io(URL, { transports:['websocket'] });
   return socket;
 }
 export function disconnectSocket(){ socket?.disconnect(); socket=null; }
