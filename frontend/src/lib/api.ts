@@ -2,8 +2,13 @@ const BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const headers: Record<string,string> = { 'Content-Type': 'application/json', ...(opts.headers as Record<string,string>||{}) };
-  const res = await fetch(`${BASE}${path}`, { ...opts, headers });
-  if (!res.ok) { const txt = await res.text(); throw new Error(txt || res.statusText); }
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, { ...opts, headers });
+  } catch (e: any) {
+    throw new Error(`Cannot reach API at ${BASE}${path}. Is the backend running? (${e?.message || 'network error'})`);
+  }
+  if (!res.ok) { const txt = await res.text(); throw new Error(txt ? `${res.status}: ${txt.slice(0, 300)}` : `${res.status} ${res.statusText}`); }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }

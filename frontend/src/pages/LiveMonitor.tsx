@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { io, Socket } from "socket.io-client";
 import { api } from "../lib/api";
+import { getLocalRun, isLocalRunId } from "../lib/localRuns";
 
 const API = (import.meta as any).env.VITE_API_URL || "http://localhost:4000";
 type Click = any;
@@ -16,6 +17,30 @@ export default function LiveMonitor() {
 
   useEffect(() => {
     if (!runId) return;
+    if (isLocalRunId(runId)) {
+      // Demo mode: replay the locally simulated clicks over time so the feed/progress animate.
+      const local = getLocalRun(runId);
+      if (!local) return;
+      setRun({ ...local, status: "running" });
+      setProgress((p) => ({ ...p, total: local.total_requests }));
+      let i = 0, success = 0, fail = 0; const times: number[] = [];
+      const t = setInterval(() => {
+        if (i >= local.clicks.length) {
+          clearInterval(t);
+          const doneAvg = times.length ? Math.round(times.reduce((a, b) => a + b, 0) / times.length) : 0;
+          setProgress({ completed: local.total_requests, total: local.total_requests, success, fail, avgMs: doneAvg });
+          setRun((r: any) => (r ? { ...r, status: "completed (demo)", success_count: success, fail_count: fail, avg_response_ms: doneAvg } : r));
+          setLive(false);
+          return;
+        }
+        const c = local.clicks[i++]!;
+        if (c.status < 400 && c.status !== 0) success++; else fail++;
+        times.push(c.responseMs);
+        setClicks((prev) => [{ ...c }, ...prev].slice(0, 300));
+        setProgress({ completed: i, total: local.total_requests, success, fail, avgMs: Math.round(times.reduce((a, b) => a + b, 0) / times.length) });
+      }, Math.max(60, Math.floor(3000 / Math.max(1, local.total_requests))));
+      return () => clearInterval(t);
+    }
     api.get<any>("/api/runs/" + runId).then((r) => {
       setRun(r);
       setProgress((p) => ({ ...p, total: r.total_requests, success: r.success_count, fail: r.fail_count, avgMs: r.avg_response_ms || 0, completed: r.success_count + r.fail_count }));
@@ -27,7 +52,7 @@ export default function LiveMonitor() {
   }, [runId]);
 
   useEffect(() => {
-    if (!runId) return;
+    if (!runId || isLocalRunId(runId)) return;
     const socket: Socket = io(API);
     socket.on("connect", () => socket.emit("run:subscribe", runId));
     socket.on("run:progress", (d: any) => setProgress((p) => ({ ...p, completed: d.completed, total: d.total, success: d.success, fail: d.fail, avgMs: d.avgMs })));

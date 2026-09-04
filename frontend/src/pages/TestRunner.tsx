@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../lib/api";
+import { createLocalRun } from "../lib/localRuns";
 import { DEVICE_FALLBACK } from "../data/devices";
 import { LOCATION_FALLBACK } from "../data/locations";
 
@@ -32,6 +33,7 @@ export default function TestRunner() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
+  const [confirmError, setConfirmError] = useState("");
 
   useEffect(() => {
     api.get<any[]>("/api/devices").then(d=>{if(Array.isArray(d)&&d.length) setDevices(d)}).catch(()=>{});
@@ -49,20 +51,43 @@ export default function TestRunner() {
   const rps: number | null = speed === "custom" ? (parseInt(customRps) || null) : speed === "burst" ? null : speed === "fast" ? 25 : 2;
 
   async function submit() {
-    if (!url) { setMsg("Enter a target URL"); return; }
-    try { new URL(url); } catch { setMsg("Invalid URL — must start with https://"); return; }
-    if (totalClicks < 1) { setMsg("Clicks must be at least 1"); return; }
-    if (sources.length === 0) { setMsg("Select at least one source"); return; }
-    setLoading(true); setMsg("");
+    if (!url) { setMsg("Enter a target URL"); setConfirmError("Enter a target URL"); return; }
+    try { new URL(url); } catch { setMsg("Invalid URL — must start with https://"); setConfirmError("Invalid URL — must start with https://"); return; }
+    if (totalClicks < 1) { setMsg("Clicks must be at least 1"); setConfirmError("Clicks must be at least 1"); return; }
+    if (sources.length === 0) { setMsg("Select at least one source"); setConfirmError("Select at least one source"); return; }
+    setLoading(true); setMsg(""); setConfirmError("");
     try {
       const body: any = { targetUrl:url, totalRequests:totalClicks, speedMode:speed==="custom"?"custom":speed, scenarioId:scenario, concurrency:parseInt(concurrency)||5, sourceFilter:sources };
       if (osFilter!=="all") body.osFilter=osFilter;
       if (selectedDevices.length) body.deviceFilter=selectedDevices;
       if (selectedCountries.length) body.geoFilter=selectedCountries;
       if (rps!==null) body.requestsPerSecond=rps;
-      const data = await api.post<any>("/api/runs", body);
+      let data: any;
+      try {
+        data = await api.post<any>("/api/runs", body);
+      } catch {
+        // No backend reachable (frontend-only deploy): run a local simulated test instead,
+        // sampling from the bundled device/location catalogs. Clearly labelled as demo mode.
+        const local = createLocalRun({
+          targetUrl: url,
+          totalRequests: totalClicks,
+          concurrency: body.concurrency,
+          speedMode: body.speedMode,
+          scenarioId: scenario,
+          sources,
+          deviceIds: selectedDevices,
+          countryCodes: selectedCountries,
+        });
+        data = { id: local.id };
+      }
+      if (!data?.id) throw new Error("Server responded without a run id — backend may not have started the test.");
       setShowConfirm(false); nav(`/run/${data.id}`);
-    } catch (e:any){ setMsg(e.message||"Failed"); } finally{ setLoading(false); }
+    } catch (e:any){
+      const friendly = e?.message?.includes("Cannot reach API")
+        ? e.message
+        : `Start failed: ${e?.message || "Failed"}`;
+      setMsg(friendly); setConfirmError(friendly);
+    } finally{ setLoading(false); }
   }
 
   const chip = (active:boolean)=>({padding:'7px 12px',borderRadius:999,fontSize:13,fontWeight:600,cursor:'pointer',border:'1px solid',borderColor:active?'#4f46e5':'#e2e8f0',background:active?'#4f46e5':'#fff',color:active?'#fff':'#475569',transition:'all .15s'});
@@ -148,9 +173,10 @@ export default function TestRunner() {
           <motion.div initial={{scale:.95,opacity:0}} animate={{scale:1,opacity:1}} exit={{scale:.95,opacity:0}} onClick={e=>e.stopPropagation()} className="card" style={{padding:24,maxWidth:420,width:'100%',display:'flex',flexDirection:'column',gap:14}}>
             <h2 style={{fontWeight:800,fontSize:16}}>Confirm test</h2>
             <p style={{fontSize:13,lineHeight:1.6}}>Send <b>{totalClicks}</b> synthetic clicks to<br/><span className="mono" style={{color:'#4f46e5',wordBreak:'break-all'}}>{url}</span><br/>OS: {osFilter} · Sources: {sources.join(", ")}<br/><span style={{fontSize:11,color:'#64748b'}}>I confirm I own or have permission to test this URL.</span></p>
+            {confirmError?<p style={{fontSize:13,lineHeight:1.5,background:'#fef2f2',border:'1px solid #fca5a5',color:'#b91c1c',padding:'10px 12px',borderRadius:10}}>{confirmError}</p>:null}
             <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
-              <button onClick={()=>setShowConfirm(false)} className="btn-ghost">Cancel</button>
-              <button onClick={submit} disabled={loading} className="btn-primary">{loading?"…":"Confirm & Start"}</button>
+              <button onClick={()=>{setShowConfirm(false); setConfirmError("");}} className="btn-ghost">Cancel</button>
+              <button onClick={submit} disabled={loading} className="btn-primary">{loading?"Starting…":"Confirm & Start"}</button>
             </div>
           </motion.div>
         </motion.div>:null}
