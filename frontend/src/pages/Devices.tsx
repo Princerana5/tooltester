@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
+import { DEVICE_FALLBACK } from '../data/devices'
 export default function Devices(){
-  const [devices,setDevices]=useState<any[]>([])
-  useEffect(()=>{api('/api/catalog/devices').then(setDevices).catch(()=>{})},[])
+  // Start with static data so the page works even when the API is unreachable (e.g. Vercel frontend-only deploy).
+  const [devices,setDevices]=useState<any[]>(DEVICE_FALLBACK)
+  useEffect(()=>{api('/api/devices').then(d=>{if(Array.isArray(d)&&d.length) setDevices(d)}).catch(()=>{})},[])
   return <div style={{padding:24}}><h2>Devices</h2>
   <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:16}}>
   {devices.map((d:any)=><div key={d.id} style={{border:'1px solid #e5e7eb',borderRadius:12,padding:16,background:'#fff'}}>

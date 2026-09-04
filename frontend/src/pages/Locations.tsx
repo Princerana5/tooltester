@@ -1,9 +1,11 @@
 import { useEffect, useState, useMemo } from 'react'
 import { api } from '../lib/api'
+import { LOCATION_FALLBACK } from '../data/locations'
 export default function Locations(){
-  const [locs,setLocs]=useState<any[]>([])
+  // Start with static data so the page works even when the API is unreachable (e.g. Vercel frontend-only deploy).
+  const [locs,setLocs]=useState<any[]>(LOCATION_FALLBACK)
   const [q,setQ]=useState('')
-  useEffect(()=>{api('/api/catalog/locations').then(setLocs).catch(()=>{})},[])
+  useEffect(()=>{api('/api/locations').then(d=>{if(Array.isArray(d)&&d.length) setLocs(d)}).catch(()=>{})},[])
   const filtered=useMemo(()=>{ if(!q) return locs; const s=q.toLowerCase(); return locs.filter((l:any)=>JSON.stringify(l).toLowerCase().includes(s))},[locs,q])
   const grouped=useMemo(()=>{ const m:Record<string,any[]>={}; filtered.forEach((l:any)=>{ const k=l.country||l.countryCode||'Other'; (m[k]=m[k]||[]).push(l)}); return m},[filtered])
   return <div style={{padding:24}}><h2>Locations</h2>

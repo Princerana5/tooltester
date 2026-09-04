@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../lib/api";
+import { DEVICE_FALLBACK } from "../data/devices";
+import { LOCATION_FALLBACK } from "../data/locations";
 
 const CLICK_OPTIONS = [1, 10, 50, 100, 500] as const;
 const SPEED_OPTS = ["sequential", "fast", "burst", "custom"] as const;
@@ -18,17 +20,23 @@ export default function TestRunner() {
   const [concurrency, setConcurrency] = useState("5");
   const [sources, setSources] = useState<string[]>(["sms", "whatsapp", "telegram", "browser"]);
   const [osFilter, setOsFilter] = useState<string>("all");
-  const [devices, setDevices] = useState<any[]>([]);
+  // Start with static catalogs so pickers work even when the API is unreachable (e.g. Vercel frontend-only deploy).
+  const [devices, setDevices] = useState<any[]>(DEVICE_FALLBACK);
   const [selectedDevices, setSelectedDevices] = useState<string[]>([]);
-  const [countries, setCountries] = useState<{ code: string; name: string }[]>([]);
+  const [countries, setCountries] = useState<{ code: string; name: string }[]>(() => {
+    const map = new Map<string, string>();
+    LOCATION_FALLBACK.forEach((l: any) => { if (!map.has(l.countryCode)) map.set(l.countryCode, l.country); });
+    return Array.from(map.entries()).map(([code, name]) => ({ code, name })).sort((a, b) => a.name.localeCompare(b.name));
+  });
   const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
 
   useEffect(() => {
-    api.get<any[]>("/api/devices").then(setDevices).catch(()=>{});
+    api.get<any[]>("/api/devices").then(d=>{if(Array.isArray(d)&&d.length) setDevices(d)}).catch(()=>{});
     api.get<any[]>("/api/locations").then(locs => {
+      if (!Array.isArray(locs)||!locs.length) return;
       const map = new Map<string, string>();
       locs.forEach((l: any) => { if (!map.has(l.countryCode)) map.set(l.countryCode, l.country); });
       setCountries(Array.from(map.entries()).map(([code, name]) => ({ code, name })).sort((a, b) => a.name.localeCompare(b.name)));

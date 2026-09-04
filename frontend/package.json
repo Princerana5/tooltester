@@ -4,6 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "gen:catalog": "node ./scripts/gen-catalog.mjs",
+    "prebuild": "npm run gen:catalog",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
